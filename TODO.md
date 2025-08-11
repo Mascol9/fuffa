@@ -9,6 +9,7 @@ Tags: [TODO] [IN PROGRESS] [TESTING] [DONE]
 - Local development setup (binary builds correctly)
 - Update README.md with fuffa branding and better structure
 - Italian help flag (-aiuto) already implemented
+- Remove all GitHub Actions workflows (no more build failures)
 
 ## TODO
 - Update .github/FUNDING.yml or remove it
