@@ -6,9 +6,9 @@ builds:
     env:
       - CGO_ENABLED=0
     asmflags:
-      - all=-trimpath={{.Env.GOPATH}}
+      - all=-trimpath={{.Env.PWD}}
     gcflags:
-      - all=-trimpath={{.Env.GOPATH}}
+      - all=-trimpath={{.Env.PWD}}
     ldflags: |
       -s -w -X github.com/Mascol9/fuffa/pkg/ffuf.VERSION_APPENDIX= -extldflags '-static'
     goos:
