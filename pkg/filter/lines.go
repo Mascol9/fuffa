@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ffuf/ffuf/v2/pkg/ffuf"
+	"github.com/Mascol9/fuffa/pkg/ffuf"
 )
 
 type LineFilter struct {

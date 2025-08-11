@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/ffuf/ffuf/v2/pkg/ffuf"
+	"github.com/Mascol9/fuffa/pkg/ffuf"
 )
 
 // MatcherManager handles both filters and matchers.

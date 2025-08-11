@@ -2,7 +2,7 @@ package input
 
 import (
 	"fmt"
-	"github.com/ffuf/ffuf/v2/pkg/ffuf"
+	"github.com/Mascol9/fuffa/pkg/ffuf"
 	"strings"
 
 	"github.com/ffuf/pencode/pkg/pencode"

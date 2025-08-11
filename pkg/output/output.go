@@ -1,7 +1,7 @@
 package output
 
 import (
-	"github.com/ffuf/ffuf/v2/pkg/ffuf"
+	"github.com/Mascol9/fuffa/pkg/ffuf"
 )
 
 func NewOutputProviderByName(name string, conf *ffuf.Config) ffuf.OutputProvider {

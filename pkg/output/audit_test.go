@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/ffuf/ffuf/v2/pkg/ffuf"
+	"github.com/Mascol9/fuffa/pkg/ffuf"
 )
 
 func TestAuditLogger(t *testing.T) {
