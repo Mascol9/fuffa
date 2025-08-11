@@ -17,8 +17,8 @@ This file tracks planned improvements, features, and fixes for the fuffa project
 - ✅ **DONE** - Remove binary files from Git repository
 - ✅ **DONE** - Update .gitignore with proper Go project patterns
 - ✅ **DONE** - Fix module paths and imports (github.com/Mascol9/fuffa)
-- 📝 **PLANNED** - Fix automated release workflow with GitHub Actions (GoReleaser errors)
-- ✅ **DONE** - Manual release creation for initial v1.0.0
+- ✅ **DONE** - Local development setup (binary builds correctly)
+- ❌ **CANCELLED** - Automated releases (not needed for now)
 
 ### Documentation Updates
 - 📝 **PLANNED** - Update README.md to reflect fuffa branding and your repository
