@@ -136,6 +136,12 @@ func (j *Job) Start() {
 	if !j.Config.Quiet {
 		j.Output.Banner()
 	}
+	
+	// Execute debug request if enabled
+	if j.Config.DebugFirstRequest {
+		j.executeDebugRequest()
+	}
+	
 	// Monitor for SIGTERM and do cleanup properly (writing the output files etc)
 	j.interruptMonitor()
 	for j.jobsInQueue() {
@@ -259,8 +265,8 @@ func (j *Job) startExecution() {
 		<-j.Rate.RateLimiter.C
 		nextInput := j.Input.Value()
 		nextPosition := j.Input.Position()
-		// Add FFUFHASH and its value
-		nextInput["FFUFHASH"] = j.ffufHash(nextPosition)
+		// Add FUFFAHASH and its value
+		nextInput["FUFFAHASH"] = j.fuffahash(nextPosition)
 
 		wg.Add(1)
 		j.Counter++
@@ -383,7 +389,7 @@ func (j *Job) isMatch(resp Response) bool {
 	return true
 }
 
-func (j *Job) ffufHash(pos int) []byte {
+func (j *Job) fuffahash(pos int) []byte {
 	hashstring := ""
 	r := []rune(j.Jobhash)
 	if len(r) > 5 {
@@ -532,7 +538,7 @@ func (j *Job) handleScraperResult(resp *Response, sres ScraperResult) {
 func (j *Job) handleGreedyRecursionJob(resp Response) {
 	// Handle greedy recursion strategy. Match has been determined before calling handleRecursionJob
 	if j.Config.RecursionDepth == 0 || j.currentDepth < j.Config.RecursionDepth {
-		recUrl := resp.Request.Url + "/" + "FUZZ"
+		recUrl := BuildRecursionURL(resp.Request.Url)
 		newJob := QueueJob{Url: recUrl, depth: j.currentDepth + 1, req: RecursionRequest(j.Config, recUrl)}
 		j.queuejobs = append(j.queuejobs, newJob)
 		j.Output.Info(fmt.Sprintf("Adding a new job to the queue: %s", recUrl))
@@ -544,7 +550,7 @@ func (j *Job) handleGreedyRecursionJob(resp Response) {
 // handleDefaultRecursionJob adds a new recursion job to the job queue if a new directory is found and maximum depth has
 // not been reached
 func (j *Job) handleDefaultRecursionJob(resp Response) {
-	recUrl := resp.Request.Url + "/" + "FUZZ"
+	recUrl := BuildRecursionURL(resp.Request.Url)
 	if (resp.Request.Url + "/") != resp.GetRedirectLocation(true) {
 		// Not a directory, return early
 		return
@@ -616,4 +622,48 @@ func (j *Job) Stop() {
 // Stop current, resume to next
 func (j *Job) Next() {
 	j.RunningJob = false
+}
+
+// executeDebugRequest executes a single debug request with the first wordlist entry
+func (j *Job) executeDebugRequest() {
+	// Get the first input value for testing
+	if !j.Input.Next() {
+		j.Output.Error("No input available for debug request")
+		return
+	}
+	
+	firstInput := j.Input.Value()
+	firstPosition := j.Input.Position()
+	
+	// Reset input to beginning for normal execution
+	j.Input.Reset()
+	
+	// Add FUFFAHASH
+	firstInput["FUFFAHASH"] = j.fuffahash(firstPosition)
+	
+	// Prepare and execute debug request
+	basereq := j.queuejobs[0].req
+	req, err := j.Runner.Prepare(firstInput, &basereq)
+	if err != nil {
+		j.Output.Error(fmt.Sprintf("Error preparing debug request: %s", err))
+		return
+	}
+	
+	// Force debug printing for this request
+	j.forceDebugPrint(&req)
+}
+
+// forceDebugPrint forces the debug output for a single request
+func (j *Job) forceDebugPrint(req *Request) {
+	// Set flag to force debug on next request
+	j.Config.ForceDebugNext = true
+	
+	resp, err := j.Runner.Execute(req)
+	if err != nil {
+		j.Output.Error(fmt.Sprintf("Error executing debug request: %s", err))
+		return
+	}
+	
+	// We don't process the response further, it's just for debugging
+	_ = resp
 }

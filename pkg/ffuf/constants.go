@@ -7,9 +7,9 @@ import (
 
 var (
 	//VERSION holds the current version number
-	VERSION = "2.1.0"
+	VERSION = "2.1.1"
 	//VERSION_APPENDIX holds additional version definition
-	VERSION_APPENDIX = "-dev"
+	VERSION_APPENDIX = "-alpha"
 	CONFIGDIR        = filepath.Join(xdg.ConfigHome, "ffuf")
 	HISTORYDIR       = filepath.Join(CONFIGDIR, "history")
 	SCRAPERDIR       = filepath.Join(CONFIGDIR, "scraper")

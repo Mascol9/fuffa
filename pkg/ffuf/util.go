@@ -77,7 +77,7 @@ func HostURLFromRequest(req Request) string {
 	return u.Host + trimpath
 }
 
-// Version returns the ffuf version string
+// Version returns the fuffa version string
 func Version() string {
 	return fmt.Sprintf("%s%s", VERSION, VERSION_APPENDIX)
 }
@@ -143,4 +143,12 @@ func mergeMaps(m1 map[string][]string, m2 map[string][]string) map[string][]stri
 		}
 	}
 	return merged
+}
+
+// BuildRecursionURL creates a proper URL for recursion, avoiding double slashes
+func BuildRecursionURL(baseURL string) string {
+	if strings.HasSuffix(baseURL, "/") {
+		return baseURL + "FUZZ"
+	}
+	return baseURL + "/" + "FUZZ"
 }

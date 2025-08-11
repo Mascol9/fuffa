@@ -8,5 +8,7 @@ const (
 	ANSI_RED            = ""
 	ANSI_GREEN          = ""
 	ANSI_BLUE           = ""
+	ANSI_CYAN           = ""
 	ANSI_YELLOW         = ""
+	BULLET_CHAR         = "●"
 )

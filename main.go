@@ -51,6 +51,8 @@ func (m *wordlistFlag) Set(value string) error {
 func ParseFlags(opts *ffuf.ConfigOptions) *ffuf.ConfigOptions {
 	var ignored bool
 
+
+
 	var cookies, autocalibrationstrings, autocalibrationstrategies, headers, inputcommands multiStringFlag
 	var wordlists, encoders wordlistFlag
 
@@ -67,11 +69,13 @@ func ParseFlags(opts *ffuf.ConfigOptions) *ffuf.ConfigOptions {
 	flag.BoolVar(&opts.Output.OutputSkipEmptyFile, "or", opts.Output.OutputSkipEmptyFile, "Don't create the output file if we don't have results")
 	flag.BoolVar(&opts.General.AutoCalibration, "ac", opts.General.AutoCalibration, "Automatically calibrate filtering options")
 	flag.BoolVar(&opts.General.AutoCalibrationPerHost, "ach", opts.General.AutoCalibration, "Per host autocalibration")
-	flag.BoolVar(&opts.General.Colors, "c", opts.General.Colors, "Colorize output.")
+	// flag.BoolVar(&opts.General.Colors, "c", opts.General.Colors, "Colorize output.") // Colors now always enabled
 	flag.BoolVar(&opts.General.Json, "json", opts.General.Json, "JSON output, printing newline-delimited JSON records")
 	flag.BoolVar(&opts.General.Noninteractive, "noninteractive", opts.General.Noninteractive, "Disable the interactive console functionality")
 	flag.BoolVar(&opts.General.Quiet, "s", opts.General.Quiet, "Do not print additional information (silent mode)")
 	flag.BoolVar(&opts.General.ShowVersion, "V", opts.General.ShowVersion, "Show version information.")
+	flag.BoolVar(&opts.General.ShowItalianHelp, "aiuto", opts.General.ShowItalianHelp, "Mostra l'aiuto in italiano.")
+	flag.BoolVar(&opts.General.DebugFirstRequest, "debug-req", opts.General.DebugFirstRequest, "Print the first HTTP request and response for debugging.")
 	flag.BoolVar(&opts.General.StopOn403, "sf", opts.General.StopOn403, "Stop when > 95% of responses return 403 Forbidden")
 	flag.BoolVar(&opts.General.StopOnAll, "sa", opts.General.StopOnAll, "Stop on all error cases. Implies -sf and -se.")
 	flag.BoolVar(&opts.General.StopOnErrors, "se", opts.General.StopOnErrors, "Stop on spurious errors")
@@ -90,7 +94,11 @@ func ParseFlags(opts *ffuf.ConfigOptions) *ffuf.ConfigOptions {
 	flag.IntVar(&opts.HTTP.RecursionDepth, "recursion-depth", opts.HTTP.RecursionDepth, "Maximum recursion depth.")
 	flag.IntVar(&opts.HTTP.Timeout, "timeout", opts.HTTP.Timeout, "HTTP request timeout in seconds.")
 	flag.IntVar(&opts.Input.InputNum, "input-num", opts.Input.InputNum, "Number of inputs to test. Used in conjunction with --input-cmd.")
+	flag.IntVar(&opts.Input.WordlistLimit, "l", opts.Input.WordlistLimit, "Limit the number of lines read from wordlist. 0 means unlimited.")
 	flag.StringVar(&opts.General.AutoCalibrationKeyword, "ack", opts.General.AutoCalibrationKeyword, "Autocalibration keyword")
+	flag.StringVar(&opts.Input.SubdomainEnumeration, "S", opts.Input.SubdomainEnumeration, "Enable subdomain enumeration mode. Optional level: -S or -S 1 for FUZZ.domain.tld, -S 2 for FUZZ.sub.domain.tld")
+	flag.BoolVar(&opts.Input.VhostEnumeration, "vhost", opts.Input.VhostEnumeration, "Enable vhost enumeration mode (adds Host: FUZZ.domain.tld header)")
+	flag.StringVar(&opts.Input.VhostDomain, "vhost-domain", opts.Input.VhostDomain, "Domain to use for vhost enumeration (optional, auto-detected from URL if not provided)")
 	flag.StringVar(&opts.HTTP.ClientCert, "cc", "", "Client cert for authentication. Client key needs to be defined as well for this to work")
 	flag.StringVar(&opts.HTTP.ClientKey, "ck", "", "Client key for authentication. Client certificate needs to be defined as well for this to work")
 	flag.StringVar(&opts.General.ConfigFile, "config", "", "Load configuration from a file")
@@ -104,7 +112,7 @@ func ParseFlags(opts *ffuf.ConfigOptions) *ffuf.ConfigOptions {
 	flag.StringVar(&opts.Filter.Time, "ft", opts.Filter.Time, "Filter by number of milliseconds to the first response byte, either greater or less than. EG: >100 or <100")
 	flag.StringVar(&opts.Filter.Words, "fw", opts.Filter.Words, "Filter by amount of words in response. Comma separated list of word counts and ranges")
 	flag.StringVar(&opts.General.Delay, "p", opts.General.Delay, "Seconds of `delay` between requests, or a range of random delay. For example \"0.1\" or \"0.1-2.0\"")
-	flag.StringVar(&opts.General.Searchhash, "search", opts.General.Searchhash, "Search for a FFUFHASH payload from ffuf history")
+	flag.StringVar(&opts.General.Searchhash, "search", opts.General.Searchhash, "Search for a FUFFAHASH payload from fuffa history")
 	flag.StringVar(&opts.HTTP.Data, "d", opts.HTTP.Data, "POST data")
 	flag.StringVar(&opts.HTTP.Data, "data", opts.HTTP.Data, "POST data (alias of -d)")
 	flag.StringVar(&opts.HTTP.Data, "data-ascii", opts.HTTP.Data, "POST data (alias of -d)")
@@ -199,7 +207,11 @@ func main() {
 	}
 
 	if opts.General.ShowVersion {
-		fmt.Printf("ffuf version: %s\n", ffuf.Version())
+		fmt.Printf("fuffa version: %s\n", ffuf.Version())
+		os.Exit(0)
+	}
+	if opts.General.ShowItalianHelp {
+		ItalianUsage()
 		os.Exit(0)
 	}
 	if len(opts.Output.DebugLog) != 0 {
@@ -222,7 +234,7 @@ func main() {
 		opts, err = ffuf.ReadConfig(opts.General.ConfigFile)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Encoutered error(s): %s\n", err)
-			Usage()
+			ItalianUsage()
 			fmt.Fprintf(os.Stderr, "Encoutered error(s): %s\n", err)
 			os.Exit(1)
 		}
@@ -431,6 +443,6 @@ func printSearchResults(conf *ffuf.Config, pos int, exectime time.Time, hash str
 	ffufreq, _ := dummyrunner.Prepare(inputdata, &basereq)
 	rawreq, _ := dummyrunner.Dump(&ffufreq)
 	fmt.Printf("-------------------------------------------\n")
-	fmt.Printf("ffuf job started at: %s\n\n", exectime.Format(time.RFC3339))
+	fmt.Printf("fuffa job started at: %s\n\n", exectime.Format(time.RFC3339))
 	fmt.Printf("%s\n", string(rawreq))
 }

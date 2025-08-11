@@ -16,7 +16,7 @@ const (
 
   {{ range .Keys }}| {{ . }} {{ end }}| URL | Redirectlocation | Position | Status Code | Content Length | Content Words | Content Lines | Content Type | Duration | ResultFile | ScraperData | Ffufhash
   {{ range .Keys }}| :- {{ end }}| :-- | :--------------- | :---- | :------- | :---------- | :------------- | :------------ | :--------- | :----------- | :------------ | :-------- |
-  {{range .Results}}{{ range $keyword, $value := .Input }}| {{ $value | printf "%s" }} {{ end }}| {{ .Url }} | {{ .RedirectLocation }} | {{ .Position }} | {{ .StatusCode }} | {{ .ContentLength }} | {{ .ContentWords }} | {{ .ContentLines }} | {{ .ContentType }} | {{ .Duration}} | {{ .ResultFile }} | {{ .ScraperData }} | {{ .FfufHash }}
+  {{range .Results}}{{ range $keyword, $value := .Input }}| {{ $value | printf "%s" }} {{ end }}| {{ .Url }} | {{ .RedirectLocation }} | {{ .Position }} | {{ .StatusCode }} | {{ .ContentLength }} | {{ .ContentWords }} | {{ .ContentLines }} | {{ .ContentType }} | {{ .Duration}} | {{ .ResultFile }} | {{ .ScraperData }} | {{ .FuffahHash }}
   {{end}}` // The template format is not pretty but follows the markdown guide
 )
 
@@ -34,7 +34,7 @@ func writeMarkdown(filename string, config *ffuf.Config, results []ffuf.Result) 
 	for _, r := range results {
 		strinput := make(map[string]string)
 		for k, v := range r.Input {
-			if k == "FFUFHASH" {
+			if k == "FUFFAHASH" {
 				ffufhash = string(v)
 			} else {
 				strinput[k] = string(v)
@@ -69,7 +69,7 @@ func writeMarkdown(filename string, config *ffuf.Config, results []ffuf.Result) 
 			ResultFile:       r.ResultFile,
 			Url:              r.Url,
 			Host:             r.Host,
-			FfufHash:         ffufhash,
+			FuffahHash:         ffufhash,
 		}
 		htmlResults = append(htmlResults, hres)
 	}

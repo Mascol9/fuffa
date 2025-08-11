@@ -32,6 +32,7 @@ type Config struct {
 	InputNum                  int                   `json:"cmd_inputnum"`
 	InputProviders            []InputProviderConfig `json:"inputproviders"`
 	InputShell                string                `json:"inputshell"`
+	WordlistLimit             int                   `json:"wordlist_limit"`
 	Json                      bool                  `json:"json"`
 	MatcherManager            MatcherManager        `json:"matchers"`
 	MatcherMode               string                `json:"mmode"`
@@ -64,10 +65,14 @@ type Config struct {
 	Timeout                   int                   `json:"timeout"`
 	Url                       string                `json:"url"`
 	Verbose                   bool                  `json:"verbose"`
+	DebugFirstRequest         bool                  `json:"debug_first_request"`
+	ForceDebugNext            bool                  `json:"-"`
 	Wordlists                 []string              `json:"wordlists"`
 	Http2                     bool                  `json:"http2"`
 	ClientCert                string                `json:"client-cert"`
 	ClientKey                 string                `json:"client-key"`
+	VhostEnumeration          bool                  `json:"vhost_enumeration"`
+	VhostDomain               string                `json:"vhost_domain"`
 }
 
 type InputProviderConfig struct {

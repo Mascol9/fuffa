@@ -16,13 +16,12 @@ import (
 
 const (
 	BANNER_HEADER = `
-        /'___\  /'___\           /'___\       
-       /\ \__/ /\ \__/  __  __  /\ \__/       
-       \ \ ,__\\ \ ,__\/\ \/\ \ \ \ ,__\      
-        \ \ \_/ \ \ \_/\ \ \_\ \ \ \ \_/      
-         \ \_\   \ \_\  \ \____/  \ \_\       
-          \/_/    \/_/   \/___/    \/_/       
-`
+  ███████╗██╗   ██╗███████╗███████╗ █████╗ 
+  ██╔════╝██║   ██║██╔════╝██╔════╝██╔══██╗
+  █████╗  ██║   ██║█████╗  █████╗  ███████║
+  ██╔══╝  ██║   ██║██╔══╝  ██╔══╝  ██╔══██║
+  ██║     ╚██████╔╝██║     ██║     ██║  ██║
+  ╚═╝      ╚═════╝ ╚═╝     ╚═╝     ╚═╝  ╚═╝`
 	BANNER_SEP = "________________________________________________"
 )
 
@@ -48,7 +47,7 @@ func NewStdoutput(conf *ffuf.Config) *Stdoutput {
 
 func (s *Stdoutput) Banner() {
 	version := strings.ReplaceAll(ffuf.Version(), "<3", fmt.Sprintf("%s<3%s", ANSI_RED, ANSI_CLEAR))
-	fmt.Fprintf(os.Stderr, "%s\n       v%s\n%s\n\n", BANNER_HEADER, version, BANNER_SEP)
+	fmt.Fprintf(os.Stderr, "%s v%s\n%s\n\n", BANNER_HEADER, version, BANNER_SEP)
 	printOption([]byte("Method"), []byte(s.config.Method))
 	printOption([]byte("URL"), []byte(s.config.Url))
 
@@ -298,7 +297,7 @@ func (s *Stdoutput) SaveFile(filename, format string) error {
 	return err
 }
 
-// Finalize gets run after all the ffuf jobs are completed
+// Finalize gets run after all the fuffa jobs are completed
 func (s *Stdoutput) Finalize() error {
 	var err error
 	if s.config.OutputFile != "" {
@@ -337,6 +336,8 @@ func (s *Stdoutput) Result(resp ffuf.Response) {
 		Duration:         resp.Duration,
 		ResultFile:       resp.ResultFile,
 		Host:             resp.Request.Host,
+		IsVhostMode:      s.config.VhostEnumeration,
+		VhostDomain:      s.config.VhostDomain,
 	}
 	s.CurrentResults = append(s.CurrentResults, sResult)
 	// Output the result
@@ -407,13 +408,14 @@ func (s *Stdoutput) prepareInputsOneLine(res ffuf.Result) string {
 }
 
 func (s *Stdoutput) resultQuiet(res ffuf.Result) {
-	fmt.Println(s.prepareInputsOneLine(res))
+	fmt.Println(res.Url)
 }
 
 func (s *Stdoutput) resultMultiline(res ffuf.Result) {
 	var res_hdr, res_str string
 	res_str = "%s%s    * %s: %s\n"
-	res_hdr = fmt.Sprintf("%s%s[Status: %d, Size: %d, Words: %d, Lines: %d, Duration: %dms]%s", TERMINAL_CLEAR_LINE, s.colorize(res.StatusCode), res.StatusCode, res.ContentLength, res.ContentWords, res.ContentLines, res.Duration.Milliseconds(), ANSI_CLEAR)
+	statusColor := s.colorizeStatusCode(res.StatusCode)
+	res_hdr = fmt.Sprintf("%s %s%s%s  [%sStatus%s: %s%d%s, Size: %d]", TERMINAL_CLEAR_LINE, statusColor, BULLET_CHAR, ANSI_CLEAR, statusColor, ANSI_CLEAR, statusColor, res.StatusCode, ANSI_CLEAR, res.ContentLength)
 	reslines := ""
 	if s.config.Verbose {
 		reslines = fmt.Sprintf("%s%s| URL | %s\n", reslines, TERMINAL_CLEAR_LINE, res.Url)
@@ -446,8 +448,47 @@ func (s *Stdoutput) resultMultiline(res ffuf.Result) {
 }
 
 func (s *Stdoutput) resultNormal(res ffuf.Result) {
-	resnormal := fmt.Sprintf("%s%s%-23s [Status: %d, Size: %d, Words: %d, Lines: %d, Duration: %dms]%s", TERMINAL_CLEAR_LINE, s.colorize(res.StatusCode), s.prepareInputsOneLine(res), res.StatusCode, res.ContentLength, res.ContentWords, res.ContentLines, res.Duration.Milliseconds(), ANSI_CLEAR)
-	fmt.Println(resnormal)
+	statusColor := s.colorizeStatusCode(res.StatusCode)
+	
+	var leftPart string
+	if res.IsVhostMode {
+		// Opzione 2: URL ricostruito per vhost
+		leftPart = s.buildVhostURL(res)
+	} else {
+		// Opzione 1: URL → payload
+		payload := s.getPayload(res)
+		if payload != "" {
+			leftPart = fmt.Sprintf("%s → %s", res.Url, payload)
+		} else {
+			leftPart = res.Url
+		}
+	}
+	
+	// Gestione allineamento intelligente
+	const maxLeftWidth = 80  // Larghezza massima per la parte sinistra
+	const minLeftWidth = 47  // Larghezza minima per mantenere retrocompatibilità
+	
+	width := minLeftWidth
+	if len(leftPart) < maxLeftWidth {
+		width = minLeftWidth
+	} else {
+		// Se URL troppo lungo, mantieni leggibile ma preserva l'URL completo
+		width = len(leftPart)
+	}
+	
+	// Se l'URL è troppo lungo, spezzalo su due righe mantenendo l'URL cliccabile
+	if len(leftPart) > maxLeftWidth {
+		// Formatta su due righe
+		fmt.Printf("%s %s%s%s  %s\n", TERMINAL_CLEAR_LINE, statusColor, BULLET_CHAR, ANSI_CLEAR, leftPart)
+		fmt.Printf("%s %*s [%sStatus%s: %s%d%s, Size: %d]\n", TERMINAL_CLEAR_LINE, len(leftPart), "", statusColor, ANSI_CLEAR, statusColor, res.StatusCode, ANSI_CLEAR, res.ContentLength)
+	} else {
+		// Formatta su una riga con padding
+		resnormal := fmt.Sprintf("%s %s%s%s  %-*s [%sStatus%s: %s%d%s, Size: %d]", 
+			TERMINAL_CLEAR_LINE, statusColor, BULLET_CHAR, ANSI_CLEAR, 
+			width, leftPart, 
+			statusColor, ANSI_CLEAR, statusColor, res.StatusCode, ANSI_CLEAR, res.ContentLength)
+		fmt.Println(resnormal)
+	}
 }
 
 func (s *Stdoutput) resultJson(res ffuf.Result) {
@@ -460,24 +501,115 @@ func (s *Stdoutput) resultJson(res ffuf.Result) {
 	}
 }
 
-func (s *Stdoutput) colorize(status int64) string {
-	if !s.config.Colors {
-		return ""
-	}
-	colorCode := ANSI_CLEAR
+
+
+func (s *Stdoutput) colorizeStatusCode(status int64) string {
 	if status >= 200 && status < 300 {
-		colorCode = ANSI_GREEN
+		return ANSI_GREEN
 	}
 	if status >= 300 && status < 400 {
-		colorCode = ANSI_BLUE
+		return ANSI_CYAN
 	}
 	if status >= 400 && status < 500 {
-		colorCode = ANSI_YELLOW
+		return ANSI_YELLOW
 	}
 	if status >= 500 && status < 600 {
-		colorCode = ANSI_RED
+		return ANSI_RED
 	}
-	return colorCode
+	return ANSI_CLEAR
+}
+
+// buildVhostURL ricostruisce l'URL con il vhost payload
+func (s *Stdoutput) buildVhostURL(res ffuf.Result) string {
+	payload := s.getPayload(res)
+	if payload == "" {
+		return res.Url
+	}
+	
+	// Estrai il dominio base dall'URL
+	originalURL := res.Url
+	if !strings.Contains(originalURL, "://") {
+		originalURL = "https://" + originalURL
+	}
+	
+	parts := strings.SplitN(originalURL, "://", 2)
+	if len(parts) != 2 {
+		return res.Url
+	}
+	
+	scheme := parts[0]
+	remaining := parts[1]
+	
+	// Separa host e path
+	hostParts := strings.SplitN(remaining, "/", 2)
+	host := hostParts[0]
+	path := ""
+	if len(hostParts) > 1 {
+		path = "/" + hostParts[1]
+	}
+	
+	// Gestisci porta nel host (es. example.com:8080)
+	port := ""
+	if strings.Contains(host, ":") {
+		hostPort := strings.SplitN(host, ":", 2)
+		host = hostPort[0]
+		port = ":" + hostPort[1]
+	}
+	
+	// Usa il dominio configurato se disponibile, altrimenti prova a estrarlo
+	var domain string
+	if res.VhostDomain != "" {
+		domain = res.VhostDomain
+	} else {
+		// Se è un IP, usa un fallback
+		if isIPAddress(host) {
+			domain = "target.local"
+		} else {
+			domain = host
+		}
+	}
+	
+	// Ricostruisci URL con vhost
+	return fmt.Sprintf("%s://%s.%s%s%s", scheme, payload, domain, port, path)
+}
+
+// getPayload estrae il primo payload dai risultati
+func (s *Stdoutput) getPayload(res ffuf.Result) string {
+	for _, k := range s.fuzzkeywords {
+		if ffuf.StrInSlice(k, s.config.CommandKeywords) {
+			// Se stiamo usando comando esterno, mostra la posizione
+			return strconv.Itoa(res.Position)
+		} else {
+			// Input wordlist
+			if val, exists := res.Input[k]; exists {
+				return string(val)
+			}
+		}
+	}
+	return ""
+}
+
+// isIPAddress verifica se una stringa sembra un indirizzo IP
+func isIPAddress(host string) bool {
+	parts := strings.Split(host, ".")
+	if len(parts) != 4 {
+		return false
+	}
+	
+	for _, part := range parts {
+		if len(part) == 0 || len(part) > 3 {
+			return false
+		}
+		for _, char := range part {
+			if char < '0' || char > '9' {
+				return false
+			}
+		}
+		if num, err := strconv.Atoi(part); err != nil || num > 255 {
+			return false
+		}
+	}
+	return true
 }
 
 func printOption(name []byte, value []byte) {

@@ -65,6 +65,8 @@ type GeneralOptions struct {
 	Scrapers                  string   `json:"scrapers"`
 	Searchhash                string   `json:"-"`
 	ShowVersion               bool     `toml:"-" json:"-"`
+	ShowItalianHelp           bool     `toml:"-" json:"-"`
+	DebugFirstRequest         bool     `json:"debug_first_request"`
 	StopOn403                 bool     `json:"stop_on_403"`
 	StopOnAll                 bool     `json:"stop_on_all"`
 	StopOnErrors              bool     `json:"stop_on_errors"`
@@ -83,7 +85,11 @@ type InputOptions struct {
 	Inputcommands          []string `json:"input_commands"`
 	Request                string   `json:"request_file"`
 	RequestProto           string   `json:"request_proto"`
+	SubdomainEnumeration   string   `json:"subdomain_enumeration"`
+	VhostEnumeration       bool     `json:"vhost_enumeration"`
+	VhostDomain           string   `json:"vhost_domain"`
 	Wordlists              []string `json:"wordlists"`
+	WordlistLimit          int      `json:"wordlist_limit"`
 }
 
 type OutputOptions struct {
@@ -128,7 +134,7 @@ func NewConfigOptions() *ConfigOptions {
 	c.General.AutoCalibration = false
 	c.General.AutoCalibrationKeyword = "FUZZ"
 	c.General.AutoCalibrationStrategies = []string{"basic"}
-	c.General.Colors = false
+	c.General.Colors = true
 	c.General.Delay = ""
 	c.General.Json = false
 	c.General.MaxTime = 0
@@ -140,6 +146,8 @@ func NewConfigOptions() *ConfigOptions {
 	c.General.ScraperFile = ""
 	c.General.Scrapers = "all"
 	c.General.ShowVersion = false
+	c.General.ShowItalianHelp = false
+	c.General.DebugFirstRequest = false
 	c.General.StopOn403 = false
 	c.General.StopOnAll = false
 	c.General.StopOnErrors = false
@@ -167,6 +175,10 @@ func NewConfigOptions() *ConfigOptions {
 	c.Input.InputNum = 100
 	c.Input.Request = ""
 	c.Input.RequestProto = "https"
+	c.Input.SubdomainEnumeration = ""
+	c.Input.VhostEnumeration = false
+	c.Input.VhostDomain = ""
+	c.Input.WordlistLimit = 0
 	c.Matcher.Mode = "or"
 	c.Matcher.Lines = ""
 	c.Matcher.Regexp = ""
@@ -360,6 +372,12 @@ func ConfigFromOptions(parseOpts *ConfigOptions, ctx context.Context, cancel con
 	//Prepare URL
 	if parseOpts.HTTP.URL != "" {
 		conf.Url = parseOpts.HTTP.URL
+		
+		// Handle subdomain enumeration flag
+		if parseOpts.Input.SubdomainEnumeration != "" {
+			// Transform URL based on subdomain level
+			conf.Url = addSubdomainFuzzPlaceholder(conf.Url, parseOpts.Input.SubdomainEnumeration)
+		}
 	}
 
 	// Prepare SNI
@@ -404,6 +422,13 @@ func ConfigFromOptions(parseOpts *ConfigOptions, ctx context.Context, cancel con
 		} else {
 			errs.Add(fmt.Errorf("Header defined by -H needs to have a value. \":\" should be used as a separator"))
 		}
+	}
+
+	// Handle vhost enumeration flag
+	if parseOpts.Input.VhostEnumeration {
+		// Add Host header for vhost enumeration
+		hostValue := addVhostFuzzHeader(parseOpts.HTTP.URL, parseOpts.Input.VhostDomain)
+		conf.Headers["Host"] = hostValue
 	}
 
 	//Prepare delay
@@ -514,6 +539,7 @@ func ConfigFromOptions(parseOpts *ConfigOptions, ctx context.Context, cancel con
 	conf.InputNum = parseOpts.Input.InputNum
 
 	conf.InputShell = parseOpts.Input.InputShell
+	conf.WordlistLimit = parseOpts.Input.WordlistLimit
 	conf.AuditLog = parseOpts.Output.AuditLog
 	conf.OutputFile = parseOpts.Output.OutputFile
 	conf.OutputDirectory = parseOpts.Output.OutputDirectory
@@ -539,8 +565,11 @@ func ConfigFromOptions(parseOpts *ConfigOptions, ctx context.Context, cancel con
 	conf.MaxTimeJob = parseOpts.General.MaxTimeJob
 	conf.Noninteractive = parseOpts.General.Noninteractive
 	conf.Verbose = parseOpts.General.Verbose
+	conf.DebugFirstRequest = parseOpts.General.DebugFirstRequest
 	conf.Json = parseOpts.General.Json
 	conf.Http2 = parseOpts.HTTP.Http2
+	conf.VhostEnumeration = parseOpts.Input.VhostEnumeration
+	conf.VhostDomain = parseOpts.Input.VhostDomain
 
 	// Check that fmode and mmode have sane values
 	valid_opmodes := []string{"and", "or"}
@@ -778,4 +807,136 @@ func ReadDefaultConfig() (*ConfigOptions, error) {
 		}
 	}
 	return ReadConfig(conffile)
+}
+
+// addSubdomainFuzzPlaceholder transforms a URL to enable subdomain enumeration at specified level
+// level "1" or "": https://example.com -> https://FUZZ.example.com
+// level "2": https://dev.example.com -> https://FUZZ.dev.example.com
+// level "3": https://api.dev.example.com -> https://FUZZ.api.dev.example.com
+func addSubdomainFuzzPlaceholder(inputURL string, level string) string {
+	// Parse the URL to extract components
+	if !strings.Contains(inputURL, "://") {
+		// If no scheme, assume https
+		inputURL = "https://" + inputURL
+	}
+	
+	// Find the scheme and host parts
+	parts := strings.SplitN(inputURL, "://", 2)
+	if len(parts) != 2 {
+		return inputURL // Invalid URL, return as-is
+	}
+	
+	scheme := parts[0]
+	remaining := parts[1]
+	
+	// Split host from path
+	hostParts := strings.SplitN(remaining, "/", 2)
+	host := hostParts[0]
+	path := ""
+	if len(hostParts) > 1 {
+		path = "/" + hostParts[1]
+	}
+	
+	// Handle port in host (e.g., example.com:8080)
+	port := ""
+	if strings.Contains(host, ":") {
+		hostPort := strings.SplitN(host, ":", 2)
+		host = hostPort[0]
+		port = ":" + hostPort[1]
+	}
+	
+	// Parse the level (default to 1 if empty or invalid)
+	subLevel := 1
+	if level != "" {
+		if parsedLevel, err := strconv.Atoi(level); err == nil && parsedLevel > 0 {
+			subLevel = parsedLevel
+		}
+	}
+	
+	// Remove www prefix if present (only for level 1)
+	if subLevel == 1 && strings.HasPrefix(host, "www.") {
+		host = host[4:]
+	}
+	
+	if subLevel == 1 {
+		// Level 1: FUZZ.example.com
+		return scheme + "://FUZZ." + host + port + path
+	} else {
+		// Level 2+: Insert FUZZ at the beginning of the existing domain
+		// For level 2 with "dev.example.com": FUZZ.dev.example.com
+		// For level 3 with "api.dev.example.com": FUZZ.api.dev.example.com
+		return scheme + "://FUZZ." + host + port + path
+	}
+}
+
+// addVhostFuzzHeader creates a Host header value for vhost enumeration
+// If domain parameter is provided, use it; otherwise extract from URL
+// Examples:
+// URL: https://10.10.10.100, domain: "target.com" -> "FUZZ.target.com"
+// URL: https://example.com, domain: "" -> "FUZZ.example.com"
+func addVhostFuzzHeader(inputURL string, domain string) string {
+	if domain != "" {
+		// Use provided domain
+		return "FUZZ." + domain
+	}
+	
+	// Extract domain from URL
+	if !strings.Contains(inputURL, "://") {
+		// If no scheme, assume https
+		inputURL = "https://" + inputURL
+	}
+	
+	// Find the scheme and host parts
+	parts := strings.SplitN(inputURL, "://", 2)
+	if len(parts) != 2 {
+		return "FUZZ.example.com" // fallback
+	}
+	
+	remaining := parts[1]
+	
+	// Split host from path
+	hostParts := strings.SplitN(remaining, "/", 2)
+	host := hostParts[0]
+	
+	// Handle port in host (e.g., example.com:8080)
+	if strings.Contains(host, ":") {
+		hostPort := strings.SplitN(host, ":", 2)
+		host = hostPort[0]
+	}
+	
+	// Check if host is an IP address
+	if isIPAddress(host) {
+		// If it's an IP, we need a domain name for vhost enum
+		return "FUZZ.target.local" // fallback for IP addresses
+	}
+	
+	// Remove www prefix if present
+	if strings.HasPrefix(host, "www.") {
+		host = host[4:]
+	}
+	
+	return "FUZZ." + host
+}
+
+// isIPAddress checks if a string looks like an IP address
+func isIPAddress(host string) bool {
+	parts := strings.Split(host, ".")
+	if len(parts) != 4 {
+		return false
+	}
+	
+	for _, part := range parts {
+		if len(part) == 0 || len(part) > 3 {
+			return false
+		}
+		for _, char := range part {
+			if char < '0' || char > '9' {
+				return false
+			}
+		}
+		if num, err := strconv.Atoi(part); err != nil || num > 255 {
+			return false
+		}
+	}
+	return true
 }

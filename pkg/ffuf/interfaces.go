@@ -113,4 +113,6 @@ type Result struct {
 	ResultFile       string              `json:"resultfile"`
 	Host             string              `json:"host"`
 	HTMLColor        string              `json:"-"`
+	IsVhostMode      bool                `json:"is_vhost_mode"`
+	VhostDomain      string              `json:"vhost_domain"`
 }

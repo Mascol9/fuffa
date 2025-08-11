@@ -127,9 +127,16 @@ func (w *WordlistInput) readFile(path string) error {
 
 	var data [][]byte
 	var ok bool
+	// Global map to track unique payloads across all lines and extensions
+	seen := make(map[string]bool)
 	reader := bufio.NewScanner(file)
 	re := regexp.MustCompile(`(?i)%ext%`)
+	linesRead := 0
 	for reader.Scan() {
+		// Check wordlist limit (0 means unlimited)
+		if w.config.WordlistLimit > 0 && linesRead >= w.config.WordlistLimit {
+			break
+		}
 		if w.config.DirSearchCompat && len(w.config.Extensions) > 0 {
 			text := []byte(reader.Text())
 			if re.Match(text) {
@@ -140,27 +147,48 @@ func (w *WordlistInput) readFile(path string) error {
 			} else {
 				text := reader.Text()
 
-				if w.config.IgnoreWordlistComments {
-					text, ok = stripComments(text)
-					if !ok {
-						continue
-					}
-				}
-				data = append(data, []byte(text))
-			}
-		} else {
-			text := reader.Text()
-
-			if w.config.IgnoreWordlistComments {
+				// Always ignore comment lines starting with #
 				text, ok = stripComments(text)
 				if !ok {
 					continue
 				}
+				
+				// Only add if we haven't seen this payload before
+				if !seen[text] {
+					data = append(data, []byte(text))
+					seen[text] = true
+				}
+				linesRead++
 			}
-			data = append(data, []byte(text))
+		} else {
+			text := reader.Text()
+
+			// Always ignore comment lines starting with #
+			text, ok = stripComments(text)
+			if !ok {
+				continue
+			}
+			
+			// Only add original payload if not seen before
+			if !seen[text] {
+				data = append(data, []byte(text))
+				seen[text] = true
+			}
+			linesRead++
+			
 			if w.keyword == "FUZZ" && len(w.config.Extensions) > 0 {
 				for _, ext := range w.config.Extensions {
-					data = append(data, []byte(text+ext))
+					// Remove dot from extension if present (for backward compatibility)
+					cleanExt := strings.TrimPrefix(ext, ".")
+					
+					// Replace/add extension
+					newPayload := replaceExtension(text, cleanExt)
+					
+					// Only add if we haven't seen this payload before
+					if !seen[newPayload] {
+						data = append(data, []byte(newPayload))
+						seen[newPayload] = true
+					}
 				}
 			}
 		}
@@ -169,8 +197,65 @@ func (w *WordlistInput) readFile(path string) error {
 	return reader.Err()
 }
 
-// stripComments removes all kind of comments from the word
+// hasValidExtension checks if a string has a valid file extension (1-4 chars after last dot)
+// Returns true if it has an extension, false otherwise
+func hasValidExtension(text string) bool {
+	// Find the last dot
+	lastDot := strings.LastIndex(text, ".")
+	if lastDot == -1 {
+		return false
+	}
+	
+	// Check if it's at the end or has invalid characters before
+	if lastDot == len(text)-1 {
+		return false
+	}
+	
+	// Get the part after the last dot
+	extension := text[lastDot+1:]
+	
+	// Extension should be 1-4 alphanumeric characters
+	if len(extension) < 1 || len(extension) > 4 {
+		return false
+	}
+	
+	// Check if all characters are alphanumeric
+	for _, char := range extension {
+		if !((char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9')) {
+			return false
+		}
+	}
+	
+	return true
+}
+
+// removeExtension removes the file extension from a string if it has a valid one
+func removeExtension(text string) string {
+	if !hasValidExtension(text) {
+		return text
+	}
+	
+	lastDot := strings.LastIndex(text, ".")
+	return text[:lastDot]
+}
+
+// replaceExtension replaces the extension of a file with a new one
+// If no extension exists, it appends the new extension
+func replaceExtension(text, newExt string) string {
+	base := removeExtension(text)
+	return base + "." + newExt
+}
+
+// stripComments removes all kind of comments and empty lines from the word
 func stripComments(text string) (string, bool) {
+	// Trim spaces from both ends
+	trimmed := strings.TrimSpace(text)
+	
+	// If the line is empty after trimming, ignore it
+	if trimmed == "" {
+		return "", false
+	}
+	
 	// If the line starts with a # ignoring any space on the left,
 	// return blank.
 	if strings.HasPrefix(strings.TrimLeft(text, " "), "#") {

@@ -42,12 +42,12 @@ func calculateHistoryHash(options []byte) string {
 func SearchHash(hash string) ([]ConfigOptionsHistory, int, error) {
 	coptions := make([]ConfigOptionsHistory, 0)
 	if len(hash) < 6 {
-		return coptions, 0, errors.New("bad FFUFHASH value")
+		return coptions, 0, errors.New("bad FUFFAHASH value")
 	}
 	historypart := hash[0:5]
 	position, err := strconv.ParseInt(hash[5:], 16, 32)
 	if err != nil {
-		return coptions, 0, errors.New("bad positional value in FFUFHASH")
+		return coptions, 0, errors.New("bad positional value in FUFFAHASH")
 	}
 	all_dirs, err := os.ReadDir(HISTORYDIR)
 	if err != nil {

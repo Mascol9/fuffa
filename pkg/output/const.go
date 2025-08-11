@@ -8,5 +8,7 @@ const (
 	ANSI_RED            = "\x1b[31m"
 	ANSI_GREEN          = "\x1b[32m"
 	ANSI_BLUE           = "\x1b[34m"
+	ANSI_CYAN           = "\x1b[36m"
 	ANSI_YELLOW         = "\x1b[33m"
+	BULLET_CHAR         = "●"
 )
