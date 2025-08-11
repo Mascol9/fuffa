@@ -1,6 +1,6 @@
 builds:
-  - id: ffuf
-    binary: ffuf
+  - id: fuffa
+    binary: fuffa
     flags:
       - -trimpath
     env:
